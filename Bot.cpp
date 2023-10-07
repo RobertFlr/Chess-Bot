@@ -6,9 +6,6 @@ const std::string Bot::BOT_NAME = "IPlayChessLikeZuckerberg";
 extern PlaySide getEngineSide();
 
 void Bot::recordMove(Move* move, PlaySide sideToMove) {
-  /* You might find it useful to also separately
-   * record last move in another custom field */
-  /* get source and destination in btb square formal */
   int from = parseSquare(move->getSource());
   int to = parseSquare(move->getDestination());
   Piece replacement;
