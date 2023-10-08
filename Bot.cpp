@@ -685,11 +685,6 @@ std::vector<Move*> Bot::getMovePool(PlaySide side) {
 }
 
 Move* Bot::calculateNextMove() {
-  /* Play move for the side the engine is playing (Hint: getEngineSide())
-   * Make sure to record your move in custom structures before returning.
-   *
-   * Return move that you are willing to submit
-   * Move is to be constructed via one of the factory methods declared in Move.h */
   PlaySide side = getEngineSide();
   /* jumpstart minimax */
   std::vector<Move*> moves = getMovePool(side);
