@@ -1,6 +1,7 @@
 #ifndef BOT_H
 #define BOT_H
 #include <bits/stdc++.h>
+#include <chrono>
 #include <vector>
 #include <stack>
 
@@ -39,7 +40,7 @@ class Bot {
 
   void recordMove(Move* move, PlaySide sideToMove);
   
-  std::vector<Move*> getMovePool(PlaySide side);
+  std::vector<std::pair<int, Move*>> getMovePool(PlaySide side);
 
   /* creates a moves stack */
   static MoveHistory create(int from, int to, Piece moved, Piece captured, Piece replacement) {
@@ -106,7 +107,9 @@ class Bot {
   /* joins the individual single piece boards */
   void update_general();
 
-
+  /* print board in human readable format */
+  void printBoardHR();
+  
 /* Board Evaluation */
 /*__________________*/
 
@@ -121,6 +124,9 @@ class Bot {
 
   /* sum of all piece type values */
   int count(int piece, PlaySide side);
+
+  /* get value of each piece */
+  int getPieceValue(Piece p);
 
   static std::string getBotName();
 };
