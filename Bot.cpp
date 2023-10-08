@@ -2,10 +2,16 @@
 #include <cstdlib>
 #include "Bot.h"
 
+int evalCnt;
+float poolTime;
+
 const std::string Bot::BOT_NAME = "IPlayChessLikeZuckerberg";
 extern PlaySide getEngineSide();
 
 void Bot::recordMove(Move* move, PlaySide sideToMove) {
+  /* You might find it useful to also separately
+   * record last move in another custom field */
+  /* get source and destination in btb square formal */
   int from = parseSquare(move->getSource());
   int to = parseSquare(move->getDestination());
   Piece replacement;
@@ -651,9 +657,50 @@ void Bot::update_general() {
   } 
 }
 
+void Bot::printBoardHR() {
+  printf ("\n");
+    for (int line = 0; line < 8; ++line) {
+        printf ("%d ", 8 - line);
+        for (int square = 0; square < 8; ++square) {
+            char symbole;
+            int P = (int)get_piece(line * 8 + square, WHITE);
+            if (P == EMPTY) {
+              P = (int)get_piece(line * 8 + square, BLACK);
+            }
+            switch ((Piece)P) {
+              case PAWN:
+                symbole = 'P';
+                break;
+              case KNIGHT:
+                symbole = 'N';
+                break;
+              case BISHOP:
+                symbole = 'B';
+                break;
+              case ROOK:
+                symbole = 'R';
+                break;
+              case QUEEN:
+                symbole = 'Q';
+                break;
+              case KING:
+                symbole = 'K';
+                break;
+              case EMPTY:
+                symbole = '0';
+                break;
+            }
+            printf(" %c",symbole); 
+        }
+        printf ("\n");
+    }
+    printf("\n   A B C D E F G H\n");
+}
+
 /** For Computing Moves **/
-std::vector<Move*> Bot::getMovePool(PlaySide side) {
-  std::vector<Move*> moves;
+std::vector<std::pair<int, Move*>> Bot::getMovePool(PlaySide side) {
+  auto start = std::chrono::high_resolution_clock::now();
+  std::vector<std::pair<int, Move*>> moves;
   /* for each possible piece type */
   for (int p = 0; p < 6; p++) {
     /* for all the available spots to move from */
@@ -666,43 +713,54 @@ std::vector<Move*> Bot::getMovePool(PlaySide side) {
       for (int to = 0; to < 64; to++) {
         /* add legal moves to pool */
         if (is_legal(from, to, side)) {
+          /* estimate each move's score */
+          int fromPiece = get_piece(from, side);
+          int toPiece = get_piece(to, opposite(side));
+          int scoreEstimate = 0;
+          /* capture as much material with
+           * as little value as possible */
+          if (toPiece != EMPTY) {
+            scoreEstimate += 10 * getPieceValue((Piece)toPiece) - getPieceValue((Piece)fromPiece);
+          }
           std::string source = to_chess_string(from);
           std::string destination = to_chess_string(to);
           if (is_promotion(from, to, side)) {
             for (int replc = ROOK; replc < KING; replc++) {
               Move* new_move = Move::promote(source, destination, (Piece)(replc));
-              moves.push_back(new_move);
+              moves.push_back({scoreEstimate + getPieceValue((Piece)replc), new_move});
             }
           } else {
             Move* new_move = Move::moveTo(source, destination);
-            moves.push_back(new_move);
+            moves.push_back({scoreEstimate, new_move});
           }
         }
       }
     }
   }
+  std::sort(moves.rbegin(), moves.rend());
+
+  auto stop = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+  poolTime += duration.count() / 1000;
   return moves;
 }
 
 Move* Bot::calculateNextMove() {
-  /* Play move for the side the engine is playing (Hint: getEngineSide())
-   * Make sure to record your move in custom structures before returning.
-   *
-   * Return move that you are willing to submit
-   * Move is to be constructed via one of the factory methods declared in Move.h */
+  auto start = std::chrono::high_resolution_clock::now();
   PlaySide side = getEngineSide();
   /* jumpstart minimax */
-  std::vector<Move*> moves = getMovePool(side);
+  std::vector<std::pair<int, Move*>> moves = getMovePool(side);
   Move* bestMove;
   if (moves.size() == 0) {
     return Move::resign();
   }
-  int bestScore = NEGINF;
+  int bestEval;
+  int bestScore = INT_MIN;
   int alpha = NEGINF;
   int beta = POSINF;
   /* for each possible move */
   for (unsigned int i = 0; i < moves.size(); i++) {
-    Move* move = moves[i];
+    Move* move = moves[i].second;
     /* save the current game state */
     Bitboard pieces_cpy[2][6]; 
     Bitboard general_board_cpy[2];
@@ -711,6 +769,7 @@ Move* Bot::calculateNextMove() {
     backup_conds(&conds_cpy);
     /* recored move */
     recordMove(move, side);
+    evalCnt++;
     /* perform search */
     int eval = -minimax(opposite(side), 3, -beta, -alpha);
     /* undo the move */
@@ -719,18 +778,24 @@ Move* Bot::calculateNextMove() {
     update_general();
     moveStack.pop();
     /* enemy move was too good */
-    if (eval > bestScore) { bestMove = move; bestScore = eval; }
+    if (eval > bestScore) { bestMove = move; bestScore = eval; bestEval = moves[i].first;}
     if (bestScore > alpha) { alpha = bestScore; }
     if (alpha >= beta) { break; }
   }
-  
-  print_BTB(general_board[WHITE] | general_board[BLACK]);
-  std::cout << "Qside : " << conds.castle_cond_qs_black << "  ";
-  std::cout << "Kside : " << conds.castle_cond_ks_black << "\n";
+  auto stop = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+  float totalTime = duration.count() / 1000;
+  printBoardHR();
+  // std::cout << "Qside : " << conds.castle_cond_qs_black << "  ";
+  // std::cout << "Kside : " << conds.castle_cond_ks_black << "\n";
+  std::cout << "Evaluated " << evalCnt << '\n';
+  std::cout << "Total Time " << std::setprecision(3) << totalTime << "ms\n";
+  std::cout << "Pool Time " << std::setprecision(3) << poolTime << "ms\n";
+  std::cout << "Score played " << bestEval << '\n';
+  poolTime = 0; evalCnt = 0;
   recordMove(bestMove, side);
   return bestMove;
 }
-
 
 /** For Board Evaluation **/
 int Bot::minimax(PlaySide side, int depth, int alpha, int beta) {
@@ -738,7 +803,7 @@ int Bot::minimax(PlaySide side, int depth, int alpha, int beta) {
   if (depth == 0) {
     return evaluate(side);
   }
-  std::vector<Move*> moves = getMovePool(side);
+  std::vector<std::pair<int, Move*>> moves = getMovePool(side);
   if (moves.size() == 0) {
     /* checkmate case */
     if (is_check(side)) {
@@ -750,7 +815,7 @@ int Bot::minimax(PlaySide side, int depth, int alpha, int beta) {
   int bestScore = NEGINF;
   /* for each possible move */
   for (unsigned int i = 0; i < moves.size(); i++) {
-    Move* move = moves[i];
+    Move* move = moves[i].second;
     /* save the current game state */
     Bitboard pieces_cpy[2][6]; 
     Bitboard general_board_cpy[2];
@@ -759,6 +824,7 @@ int Bot::minimax(PlaySide side, int depth, int alpha, int beta) {
     backup_conds(&conds_cpy);
     /* recored move */
     recordMove(move, side);
+    evalCnt++;
     /* perform search */
     int eval = -minimax(opposite(side), depth - 1, -beta, -alpha);
     /* undo the move */
@@ -800,6 +866,26 @@ int Bot::count(int piece, PlaySide side) {
     B >>= 1;
   }
   return res;
+}
+
+int Bot::getPieceValue(Piece p) {
+  switch (p) {
+    case PAWN:
+      return 1;
+    case KNIGHT:
+      return 3;
+    case BISHOP:
+      return 3;
+    case ROOK:
+      return 5;
+    case QUEEN:
+      return 9;
+    case EMPTY:
+      return 0;
+    case KING:
+      return 0;
+  }
+  return 0;
 }
 
 std::string Bot::getBotName() { return Bot::BOT_NAME; }
