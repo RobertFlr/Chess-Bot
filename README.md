@@ -5,4 +5,4 @@ Version 1.0.5<br />
 
 <b>MiniMax</b> with <b>alpha-beta pruning</b> for search optimization<br />
 
-Evaluates roughly <b>1 million</b> move possibilities each second
+Evaluates roughly <b>1 million</b> game state possibilities each second
