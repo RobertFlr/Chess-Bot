@@ -1,5 +1,5 @@
 # EndGame::Chess-Bot
-Version 1.0.5<br />
+Version 1.0.6<br />
 
 <b>Bitboards</b> for efficient board memorization<br />
 
